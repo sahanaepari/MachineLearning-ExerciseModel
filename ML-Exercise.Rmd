@@ -1,0 +1,94 @@
+---
+title: "ML-Exercise"
+author: "Sahana Epari"
+date: "8/28/2020"
+output: html_document
+---
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: 
+(http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) 
+
+### Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### Set-up 
+
+```{r setup, include=FALSE}
+library(caret); library(ggplot2); library(randomForest)
+training <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+testing <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+```
+
+### Cleaning up data
+
+The training and testing data given has a lot of NA values and unnecessary columns, so the first step is to clean the data up to form a tidy dataset.
+
+```{r}
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+#removing first 7 columns (irrelevant to model building)
+training   <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+```
+
+### Cross validation
+
+Within the training set, we must subdivide the data once more to form the main training set (where the model will be built), and a validation set to test the data before applying on the original test data.
+
+```{r}
+set.seed(1234)
+inTrain <- createDataPartition(training$classe,p=0.7, list=FALSE)
+training <- training[inTrain,]
+validation <- training[-inTrain,]
+validation$classe <- as.factor(validation$classe)
+```
+
+### Prediction Model I: Decision Trees
+
+```{r}
+library(rpart); library(rpart.plot)
+modelDT <- rpart(classe~., data=training, method="class")
+rpart.plot(modelDT, main = "Classification Tree",extra=102, under=TRUE, faclen=0)
+predDT <- predict(modelDT,validation, type="class")
+```
+
+### Prediction Model II: Random Forest
+
+```{r}
+modelRF <- train(classe ~ ., data = training, method = "rf", trControl = trainControl(method = "cv", 5), ntree = 100)
+predRF <- predict(modelRF,validation)
+```
+
+### Creating confusion matrixes and finding accuracy of each model
+
+```{r}
+confusionMatrix(predDT,validation$classe)
+```
+The prediction accuracy of using the decision tree model is around 76.42% based on the validation test data. The estimated out of sample error is around 23.58%.
+
+```{r}
+confusionMatrix(predRF, validation$classe)
+```
+
+The prediction accuracy of using the random forest model is 100% based on the validation test data. The estimated out of sample error is around 0.
+
+### Conclusion
+
+Based on the accuracy and out of sample error of both models tested, we can confidently choose the random forest model to predict the test data.
+
+### Submission
+
+```{r}
+predict(modelRF, testing)
+```
